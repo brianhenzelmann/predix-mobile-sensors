@@ -1,0 +1,93 @@
+<ion-view view-title="Sensors">
+<div class="bar bar-header">
+  <button class="button button-icon icon ion-navicon"></button>
+  <div class="h1 title">Header Buttons</div>
+  <button class="button button-clear button-positive">Edit</button>
+</div>
+	<ion-content>
+	  	<div class="list">
+	  		<div class="item item-divider">
+				Connection
+			</div>
+	  		<li class="item item-toggle">
+				Disconnected
+				<label class="toggle toggle-calm">
+				  <input type="checkbox" ng-click="connect()">
+				  <div class="track">
+				    <div class="handle"></div>
+				  </div>
+				</label>
+			</li>
+			<div class="item item-divider">
+				Watch
+			</div>
+	  		<li class="item item-toggle">
+				Watch:
+				<label class="toggle toggle-calm">
+				  <input type="checkbox" ng-click="watch()">
+				  <div class="track">
+				    <div class="handle"></div>
+				  </div>
+				</label>
+			</li>
+			<div class="item item-divider">
+				Battery
+			</div>
+			<li class="item">
+				<span class="pull-right">{{status.level}}</span>
+				Level
+			</li>
+			<li class="item">
+				<span class="pull-right">{{status.isPlugged}}</span>
+				Plugged in
+			</li>
+			<div class="item item-divider">
+				Acceleration
+			</div>
+			<li class="item">
+				<span class="pull-right">{{acceleration.x}}</span>
+				X
+			</li>
+			<li class="item">
+				<span class="pull-right">{{acceleration.y}}</span>
+				Y
+			</li>
+			<li class="item">
+				<span class="pull-right">{{acceleration.z}}</span>
+				Z
+			</li>
+			<div class="item item-divider">
+				Compass
+			</div>
+			<li class="item">
+				<span class="pull-right">{{heading.magneticHeading}}</span>
+				Heading
+			</li>
+			<div class="item item-divider">
+				Position
+			</div>
+			<li class="item">
+				<span class="pull-right">{{position.coords.latitude}}</span>
+				Latitude
+			</li>
+			<li class="item">
+				<span class="pull-right">{{position.coords.longitude}}</span>
+				Longitude</li>
+			<div class="item item-divider">
+				Logs
+			</div>
+			<li class="item" ng-show="logs.length === 0">No error logs</li>
+			<div class="card" ng-repeat="log in logs">
+				<div class="item item-text-wrap">
+					<div>{{log.date}}</div>
+					<div>{{log.message}}</div>
+				</div>
+			</div>
+		</div>
+	</ion-content>
+</ion-view>
+<style>
+	.pull-right{
+		float: right;
+	}
+</style>
