@@ -6,26 +6,26 @@
 		</div>
 		<label class="item item-input item-floating-label">
 			<span class="input-label">Time Series URL</span>
-			<input type="text" placeholder="Time Series URL">
+			<input type="text" placeholder="Time Series URL" ng-model="$parent.timeseriesUrl" ng-value="$parent.timeseriesUrl" ng-change="saveLocalStorage()">
 		</label>
 		<label class="item item-input item-floating-label">
-			<span class="input-label">Zone ID</span>
-			<input type="text" placeholder="Zone ID">
+			<span class="input-label">Predix Zone ID</span>
+			<input type="text" placeholder="Predix Zone ID" ng-model="$parent.predixZoneId" ng-value="$parent.predixZoneId" ng-change="saveLocalStorage()">
 		</label>
 		<div class="item item-divider">
     			UAA
 		</div>
 		<label class="item item-input item-floating-label">
 			<span class="input-label">Trusted Issuer ID</span>
-			<input type="text" placeholder="Trusted Issuer ID">
+			<input type="text" placeholder="Trusted Issuer ID" ng-model="$parent.trustedIssuerId" ng-value="$parent.trustedIssuerId" ng-change="saveLocalStorage()">
 		</label>
 		<label class="item item-input item-floating-label">
 			<span class="input-label">Client ID</span>
-			<input type="text" placeholder="Client ID">
+			<input type="text" placeholder="Client ID" ng-model="$parent.clientId" ng-value="$parent.clientId" ng-change="saveLocalStorage()">
 		</label>
 		<label class="item item-input item-floating-label">
 			<span class="input-label">Client Secret</span>
-			<input type="password" placeholder="Client Secret">
+			<input type="password" placeholder="Client Secret" ng-model="$parent.clientSecret" ng-value="$parent.clientSecret" ng-change="saveLocalStorage()">
 		</label>
 	</div>
   </ion-content>

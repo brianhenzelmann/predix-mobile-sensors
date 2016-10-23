@@ -5,12 +5,17 @@
   <button class="button button-clear button-positive">Edit</button>
 </div>
 	<ion-content>
+		<img src="https://www.google.com/url?sa=i&rct=j&q=&esrc=s&source=images&cd=&cad=rja&uact=8&ved=0ahUKEwjh6aiUmfHPAhUB5iYKHesYBC0QjRwIBw&url=http%3A%2F%2Fwww.ge.com%2Fdigital%2Fpredix%2Findustries&psig=AFQjCNHPOtitzsqAzLt9ce3v0rXzikdxMQ&ust=1477321380909521" class="masthead__wordmark  u-mb-" lt="Predix">
 	  	<div class="list">
 	  		<div class="item item-divider">
 				Connection
 			</div>
+			<li class="item">
+				<span class="pull-right">{{isConnected}}</span>
+				Status
+			</li>
 	  		<li class="item item-toggle">
-				Disconnected
+				Connect
 				<label class="toggle toggle-calm">
 				  <input type="checkbox" ng-click="connect()">
 				  <div class="track">
