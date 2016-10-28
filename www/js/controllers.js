@@ -10,19 +10,25 @@ angular.module('starter.controllers', [])
   //});
 })
 
-.controller('SensorsCtrl', function($scope, $rootScope) {
+.controller('SensorsCtrl', function($scope, $rootScope, $http) {
   console.log('SensorsCtrl called');
   $scope.watching = false;
   $scope.logs = [];
-  $scope.interval = 300;
+  $scope.connectionStatus = 'Disconnected';
+  document.addEventListener("deviceready", onDeviceReady, false);
+  function onDeviceReady() {
+      $scope.device = device;
+  }
 
   // Settings
   console.log('=========== Loading localStorage =============');
-  $scope.timeseriesUrl = localStorage.timeseriesUrl ? localStorage.timeseriesUrl:'';
+  $scope.timeseriesUrl = localStorage.timeseriesUrl ? localStorage.timeseriesUrl:'wss://gateway-predix-data-services.run.aws-usw02-pr.ice.predix.io/v1/stream/messages';
   $scope.predixZoneId = localStorage.predixZoneId ? localStorage.predixZoneId:'';
   $scope.trustedIssuerId = localStorage.trustedIssuerId ? localStorage.trustedIssuerId:'';
   $scope.clientId = localStorage.clientId ? localStorage.clientId:'';
   $scope.clientSecret = localStorage.clientSecret?localStorage.clientSecret:'';
+  $scope.accessTokenJSON = JSON.parse(localStorage.accessTokenJSON?localStorage.accessTokenJSON:'{}');
+  $scope.interval = localStorage.interval?localStorage.interval:500;
 
   $scope.onSuccessAcceleration = function(acceleration) {
     $scope.acceleration = acceleration;
@@ -67,6 +73,41 @@ angular.module('starter.controllers', [])
         timeout: $scope.interval, 
         enableHighAccuracy: true 
       });
+
+      $scope.timer = setInterval(function(){
+        if($scope.socket && $scope.socket.readyState === 1 && $scope.socketInfo){
+          var date = (new Date()).getTime();
+          var requestBody = {
+            socketId: $scope.socketInfo.socketId,
+            messageId: date,
+            body:[]
+          };
+
+          if($scope.status){
+            requestBody.body.push($scope.buildData('battery', date, $scope.status.level));
+            requestBody.body.push($scope.buildData('pluggedIn', date, $scope.status.isPlugged));
+          };
+
+          if($scope.acceleration){
+            requestBody.body.push($scope.buildData('acceleration-x', date, $scope.acceleration.x));
+            requestBody.body.push($scope.buildData('acceleration-y', date, $scope.acceleration.y));
+            requestBody.body.push($scope.buildData('acceleration-z', date, $scope.acceleration.z));
+          };
+
+          if($scope.heading){
+            requestBody.body.push($scope.buildData('direction', date, $scope.heading.magneticHeading));
+          };
+
+          if($scope.position){
+            requestBody.body.push($scope.buildData('latitude', date, $scope.position.coords.latitude));
+            requestBody.body.push($scope.buildData('longitude', date, $scope.position.coords.longitude));
+          };
+
+          console.log('=============== Sending data ================');
+          console.log(JSON.stringify(requestBody));
+          $scope.socket.send(JSON.stringify(requestBody));
+        }
+      }, $scope.interval);
     } else{
       console.log('============== Disabling sensors ================');
       if($scope.accelerationWatchId){
@@ -81,8 +122,96 @@ angular.module('starter.controllers', [])
         navigator.geolocation.clearWatch($scope.geoWatchID);
         delete $scope.geoWatchID;
       }
+      delete $scope.timer;
     }
     $scope.watching = !$scope.watching;
+  };
+
+  $scope.buildData = function(tagName, date, value){
+    return {
+      name: tagName,
+      datapoints: [
+        [date, value, 2]
+      ],
+      attributes:device
+    };
+  };
+
+  $scope.connect = function(){
+    if(!$scope.socketInfo){
+      $scope.connectionStatus = 'Connecting';
+      console.log(JSON.stringify({
+        method: 'GET',
+        url: 'https://predix-proxy.run.aws-usw02-pr.ice.predix.io/open-ws',
+        headers:{
+          'Authorization': $scope.accessTokenJSON.token_type + ' ' + $scope.accessTokenJSON.access_token,
+          'Predix-Zone-Id': $scope.predixZoneId,
+          'X-Endpoint': $scope.timeseriesUrl
+        }
+      }));
+      $http({
+        method: 'GET',
+        url: 'https://predix-proxy.run.aws-usw02-pr.ice.predix.io/open-ws',
+        headers:{
+          'Authorization': $scope.accessTokenJSON.token_type + ' ' + $scope.accessTokenJSON.access_token,
+          'Predix-Zone-Id': $scope.predixZoneId,
+          'X-Endpoint': $scope.timeseriesUrl
+        }
+      }).then(function successCallback(response) {
+        if(response.data.readyState === 'OPEN'){
+          $scope.socketInfo = response.data;
+          $scope.openWebsocket();
+          $scope.connectionStatus = 'Connected';
+        } else{
+          $scope.connectionStatus = 'Disconnected';
+          $scope.logs.push({date:(new Date()).toLocaleString(), message: 'Error connecting to Time Series service.'});
+        }
+      }, function errorCallback(response) {
+        $scope.connectionStatus = 'Disconnected';
+        console.log(JSON.stringify(response));
+        $scope.logs.push({date:(new Date()).toLocaleString(), message: 'Error connecting to Time Series service.'});
+      });
+    } else{
+      $scope.connectionStatus = 'Disconnecting';
+      $http({
+        method: 'GET',
+        url: 'https://predix-proxy.run.aws-usw02-pr.ice.predix.io/close-ws',
+        headers:{
+          'X-SocketId': $scope.socketInfo.socketId
+        }
+      }).then(function successCallback(response) {
+        $scope.connectionStatus = 'Disconnected';
+        delete $scope.socketInfo;
+        $scope.logs.push({date:(new Date()).toLocaleString(), message: 'Disconnected from Time Series service.'});
+      }, function errorCallback(response) {
+        $scope.connectionStatus = 'Error disconnecting';
+        $scope.logs.push({date:(new Date()).toLocaleString(), message: 'Error disconnecting from Time Series service.'});
+      });
+    }
+  };
+
+  $scope.openWebsocket = function(){
+    $scope.wsProxyUrl = 'wss://predix-proxy.run.aws-usw02-pr.ice.predix.io';
+    // actually open the socket here!
+    $scope.socket = new WebSocket($scope.wsProxyUrl);
+
+    $scope.socket.onopen = function() {
+      console.log('ws proxy socket open.');
+      // need to send socket ID, to bind client socket to back end socket.
+      // TODO: fix this!  it's ugly for time series ingestion.
+      $scope.socket.send(JSON.stringify({socketId: $scope.socketInfo.socketId, handshake: true}));
+    };
+
+    $scope.socket.onmessage = function(evt) {
+      console.log('message received: ' + evt.data);
+      $scope.restResponse = evt.data + '\n' + $scope.restResponse;
+      // socket.close();
+    };
+    $scope.socket.onerror = function(err) {
+      console.log('error from ws proxy');
+      $scope.error = JSON.stringify(err);
+      $scope.socket.close();
+    };
   };
 
   window.addEventListener("batterystatus", onBatteryStatus, false);
@@ -91,32 +220,28 @@ angular.module('starter.controllers', [])
     $scope.status = status;
   }
 
-  $scope.socket = io("wss://gateway-predix-data-services.run.aws-usw02-pr.ice.predix.io/v1/stream/messages", {
-    extraHeaders: {
-      'Predix-Zone-Id': '72963a4d-b5bc-4cf1-b7bd-ef9f363ecb5b',
-      'Authorization': 'Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImxlZ2FjeS10b2tlbi1rZXkiLCJ0eXAiOiJKV1QifQ.eyJqdGkiOiIzOTMxYWRhOWI0ZWY0MDQwYWM2NzIyNWYyZTczMGM3NiIsInN1YiI6InByZWRpeC1zZWVkIiwic2NvcGUiOlsidWFhLnJlc291cmNlIiwic2NpbS5tZSIsImFzc2V0LnpvbmVzLmU2NGQ0MDY2LTY5M2MtNGViYS05MzcxLTAwN2VhZTZmMDUzZC51c2VyIiwib3BlbmlkIiwidmlld3MucG93ZXIudXNlciIsInByZWRpeC1hc3NldC56b25lcy5lNjRkNDA2Ni02OTNjLTRlYmEtOTM3MS0wMDdlYWU2ZjA1M2QudXNlciIsInByZWRpeC1hc3NldC56b25lcy5kNTAzZWZmNi02YjM1LTRiZjItOTUwMi1kOTE5OGNiNzczZWIudXNlciIsInZpZXdzLmFkbWluLnVzZXIiLCJ2aWV3cy56b25lcy5jYzVjODRlMy0zZTUzLTQzZTYtODA2Mi0xMjA3MWE4OWQwMzIudXNlciIsInVhYS5ub25lIiwidGltZXNlcmllcy56b25lcy43Mjk2M2E0ZC1iNWJjLTRjZjEtYjdiZC1lZjlmMzYzZWNiNWIucXVlcnkiLCJ0aW1lc2VyaWVzLnpvbmVzLjcyOTYzYTRkLWI1YmMtNGNmMS1iN2JkLWVmOWYzNjNlY2I1Yi5pbmdlc3QiLCJ0aW1lc2VyaWVzLnpvbmVzLjcyOTYzYTRkLWI1YmMtNGNmMS1iN2JkLWVmOWYzNjNlY2I1Yi51c2VyIiwicHJlZGl4LWFzc2V0LnpvbmVzLmNlY2IwMzNiLTQ0NTItNDE3OC1hNjc5LTVmNTlhNDMxYjRmNS51c2VyIl0sImNsaWVudF9pZCI6InByZWRpeC1zZWVkIiwiY2lkIjoicHJlZGl4LXNlZWQiLCJhenAiOiJwcmVkaXgtc2VlZCIsImdyYW50X3R5cGUiOiJjbGllbnRfY3JlZGVudGlhbHMiLCJyZXZfc2lnIjoiZDAwNTg4ODciLCJpYXQiOjE0NzcxNTg0ODEsImV4cCI6MTQ3NzIwMTY4MSwiaXNzIjoiaHR0cHM6Ly83YTQ0ODVlNy05N2FhLTQ5ZTktOTYxMC0zOTU2OGJhNzdlNDIucHJlZGl4LXVhYS5ydW4uYXdzLXVzdzAyLXByLmljZS5wcmVkaXguaW8vb2F1dGgvdG9rZW4iLCJ6aWQiOiI3YTQ0ODVlNy05N2FhLTQ5ZTktOTYxMC0zOTU2OGJhNzdlNDIiLCJhdWQiOlsic2NpbSIsInZpZXdzLnpvbmVzLmNjNWM4NGUzLTNlNTMtNDNlNi04MDYyLTEyMDcxYTg5ZDAzMiIsIm9wZW5pZCIsInRpbWVzZXJpZXMuem9uZXMuNzI5NjNhNGQtYjViYy00Y2YxLWI3YmQtZWY5ZjM2M2VjYjViIiwidmlld3MuYWRtaW4iLCJhc3NldC56b25lcy5lNjRkNDA2Ni02OTNjLTRlYmEtOTM3MS0wMDdlYWU2ZjA1M2QiLCJwcmVkaXgtYXNzZXQuem9uZXMuY2VjYjAzM2ItNDQ1Mi00MTc4LWE2NzktNWY1OWE0MzFiNGY1IiwidWFhIiwicHJlZGl4LXNlZWQiLCJwcmVkaXgtYXNzZXQuem9uZXMuZTY0ZDQwNjYtNjkzYy00ZWJhLTkzNzEtMDA3ZWFlNmYwNTNkIiwidmlld3MucG93ZXIiLCJwcmVkaXgtYXNzZXQuem9uZXMuZDUwM2VmZjYtNmIzNS00YmYyLTk1MDItZDkxOThjYjc3M2ViIl19.RqOVpiUz_qElA_ay5AC8Vh0rOcoLpzCw9Ha0rxq55nnalk6Ie904x8QPfp5gUUtvaDMfS231u87w1T2h6xuMA_J-8HL6nq59qBHdtOdzJMjDBFLeMVmylpg8_l7SaFLBP8tikYOj6id86DOpFfSIEQklxpqxMT56MK7eXlhiao7c5TMfQ3ND-GNgKxfEYtEi4_jhuZiIYMaVYZw34DAFx5rb7UzBBoujB8M_792McSn-ftiWY2arBdV-dkVJfcfGBRR9-jKCpe8ICe_o3Do2hyGionyWslhmVvgrkaUJ9i3saFx6hjHyC3WPnCSWiuVGXpzZ90NwMx3MlAHPT6tWjA',
-      'Origin': 'http://localhost:8100'
-    }
-  });
-
-  $scope.socket.on('connect', function () {
-    console.log('Connected to websockets');
-    socket.emit('my other event', { my: 'data' });
-  });
-
   $scope.init = function(){
     $scope.watch();
   };
+
   $scope.init();
 })
 
-.controller('SettingsCtrl', function($scope) {
+.controller('SettingsCtrl', function($scope, $http) {
+  $scope.logs = [];
+  document.addEventListener("deviceready", onDeviceReady, false);
+  function onDeviceReady() {
+      $scope.device = device;
+  }
+
   console.log('=========== Loading localStorage =============');
-  $scope.timeseriesUrl = localStorage.timeseriesUrl ? localStorage.timeseriesUrl:'';
+  $scope.timeseriesUrl = localStorage.timeseriesUrl ? localStorage.timeseriesUrl:'wss://gateway-predix-data-services.run.aws-usw02-pr.ice.predix.io/v1/stream/messages';
   $scope.predixZoneId = localStorage.predixZoneId ? localStorage.predixZoneId:'';
   $scope.trustedIssuerId = localStorage.trustedIssuerId ? localStorage.trustedIssuerId:'';
   $scope.clientId = localStorage.clientId ? localStorage.clientId:'';
   $scope.clientSecret = localStorage.clientSecret?localStorage.clientSecret:'';
+  $scope.accessTokenJSON = JSON.parse(localStorage.accessTokenJSON?localStorage.accessTokenJSON:'{}');
+  $scope.refreshInterval = localStorage.interval?localStorage.interval:500;
 
   $scope.saveLocalStorage = function(){
     console.log('=========== Saving localStorage =============');
@@ -126,5 +251,31 @@ angular.module('starter.controllers', [])
     localStorage.trustedIssuerId = $scope.trustedIssuerId;
     localStorage.clientId = $scope.clientId;
     localStorage.clientSecret = $scope.clientSecret;
+    localStorage.refreshInterval = $scope.refreshInterval;
+  };
+
+  $scope.getToken = function(){
+    $http({
+      method: 'POST',
+      url: 'https://predix-proxy.run.aws-usw02-pr.ice.predix.io/uaalogin',
+      headers:{
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic ' + btoa($scope.clientId + ':' + $scope.clientSecret)
+      },
+      data: 'uaaUrlInput=' + encodeURIComponent($scope.trustedIssuerId) + '&grant_type=client_credentials'
+    }).then(function successCallback(response) {
+      response.data.expiration = new Date();
+      response.data.expiration.setSeconds(response.data.expiration.getSeconds() + response.data.expires_in);
+      localStorage.accessTokenJSON = JSON.stringify(response.data);
+      $scope.accessTokenJSON = response.data;
+      var accessTokenParts = $scope.accessTokenJSON.access_token.split('.');
+      $scope.decryptedToken = JSON.parse(atob(accessTokenParts[1]));
+      $scope.logs.push({date:(new Date()).toLocaleString(), message: 'Successfully retrieved token.'});
+      $scope.$apply();
+    }, function errorCallback(response) {
+      console.log(JSON.stringify(response));
+      $scope.logs.push({date:(new Date()).toLocaleString(), message: 'Error getting token.'});
+      $scope.$apply();
+    });
   };
 });

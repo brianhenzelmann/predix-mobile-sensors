@@ -10,7 +10,11 @@
 		</label>
 		<label class="item item-input item-floating-label">
 			<span class="input-label">Predix Zone ID</span>
-			<input type="text" placeholder="Predix Zone ID" ng-model="$parent.predixZoneId" ng-value="$parent.predixZoneId" ng-change="saveLocalStorage()">
+			<input type="text" placeholder="Predix Zone ID" ng-model="$parent.predixZoneId" ng-value="$parent.predixZoneId" ng-change="saveLocalStorage()" autocomplete="off" autocorrect="off" autocapitalize="off">
+		</label>
+		<label class="item item-input item-floating-label">
+			<span class="input-label">Refresh Interval (ms)</span>
+			<input type="number" placeholder="Refresh Interval" ng-model="$parent.refreshInterval" ng-value="$parent.refreshInterval" ng-change="saveLocalStorage()" autocomplete="off" autocorrect="off" autocapitalize="off">
 		</label>
 		<div class="item item-divider">
     			UAA
@@ -27,6 +31,34 @@
 			<span class="input-label">Client Secret</span>
 			<input type="password" placeholder="Client Secret" ng-model="$parent.clientSecret" ng-value="$parent.clientSecret" ng-change="saveLocalStorage()">
 		</label>
+		<div class="item item-divider">
+			Logs
+		</div>
+		<li class="item" ng-show="logs.length === 0">No error logs</li>
+		<div class="card" ng-repeat="log in logs">
+			<div class="item item-text-wrap">
+				<div>{{log.date}}</div>
+				<div>{{log.message}}</div>
+			</div>
+		</div>
+		<div class="item item-divider">
+			Token
+		</div>
+		<li class="item" ng-show="!decryptedToken">No token</li>
+		<li class="item" ng-show="decryptedToken"><pre>{{decryptedToken | json}}</pre></li>
+		<button class="button button-full button-positive" ng-click="getToken()">
+			Get Token
+		</button>
 	</div>
   </ion-content>
 </ion-view>
+<style type="text/css">
+	pre, input, textarea{
+		-webkit-user-select: auto !important;
+		-khtml-user-select: auto !important;
+		-moz-user-select: auto !important;
+		-ms-user-select: auto !important;
+		-o-user-select: auto !important;
+		user-select: auto !important;  
+  	}
+</style>
