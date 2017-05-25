@@ -69,9 +69,9 @@ angular.module('starter.controllers', [])
       });
 
       $scope.geoWatchID = navigator.geolocation.watchPosition($scope.onSuccessPosition, $scope.onErrorPosition, {
-        maximumAge: $scope.interval, 
-        timeout: $scope.interval, 
-        enableHighAccuracy: true 
+        maximumAge: $scope.interval,
+        timeout: $scope.interval,
+        enableHighAccuracy: true
       });
 
       $scope.timer = setInterval(function(){
@@ -122,7 +122,7 @@ angular.module('starter.controllers', [])
         navigator.geolocation.clearWatch($scope.geoWatchID);
         delete $scope.geoWatchID;
       }
-      delete $scope.timer;
+      clearInterval($scope.timer);
     }
     $scope.watching = !$scope.watching;
   };
